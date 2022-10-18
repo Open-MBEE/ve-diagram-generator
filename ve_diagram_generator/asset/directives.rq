@@ -1,0 +1,111 @@
+
+#@def DIRECTIVE_JOIN
+ask {
+    # proper page reference style
+    {
+        ?directive_link a :PageReference ;
+            :ref ?directive_page_title ;
+            .
+
+        optional {
+            ?directive_link :text ?directive_link_text .
+        }
+        optional {
+            ?directive_link :spaceKey ?directive_page_space .
+        }
+    }
+    # sloppy external link style
+    union {
+        ?directive_link a :ExternalLink ;
+            :hrefLinked ?proxy .
+
+        ?proxy owl:sameAs? [
+            :title ?directive_page_title ;
+        ] .
+    }
+
+    # join with directive ref's page id
+    ?view_template_def a :Document ;
+        :spaceKey ?directive_page_space ;
+        :title ?directive_page_title ;
+        :pageId ?directive_page_id ;
+        .
+}
+#@end
+
+
+select * from <$SPACE_GRAPH> {
+    # graph ?space_iri {
+        ?source_iri a :Document ;
+            :pageId ?source_page_id ;
+            :content/rdf:rest*/rdf:first ?root_container .
+
+        # path traversal into all nested containers
+        ?root_container ((:body|:items)/rdf:rest*/rdf:first)* ?directive .
+
+        # view directive
+        {
+            # annotated view directive
+            {
+                ?directive a :Macro ;
+                    ac:name "span" ;
+                    ac:macro-id ?directive_macro_id ;
+                    :parameter [
+                        ac:name "class" ;
+                        :value ?directive_command ;
+                    ] ;
+                    :body ([
+                        a :Paragraph ;
+                        :body ( ?directive_link ) ;
+                    ]) ;
+                    .
+
+                # filter(strStarts(?directive_command, "insertView"))
+                values ?directive_command {
+                    #@inject $DIRECTIVE_COMMANDS
+                }
+
+                #@mixin DIRECTIVE_JOIN
+            }
+            #@if $DIRECTIVE_PAGE_TITLE_PREFIXES
+                # plain view directive link
+                union {
+                    # ?directive_link := ?directive
+                    ?directive owl:sameAs? ?directive_link .
+
+                    # exclude links within macros
+                    filter not exists {
+                        ?root_container ((:body|:items)/rdf:rest*/rdf:first)* ?macro .
+                        ?macro a :Macro .
+                        ?macro ((:body|:items)/rdf:rest*/rdf:first)* ?directive .
+                    }
+
+                    # linked page title matches view naming convention
+                    filter(strStarts(?directive_page_title, ?directive_page_title_prefix))
+                    values ?directive_page_title_prefix {
+                        #@inject $DIRECTIVE_PAGE_TITLE_PREFIXES
+                    }
+
+                    #@mixin DIRECTIVE_JOIN
+                }
+            #@fi
+        }
+        #@if $DIRECTIVE_LINK_HREF_PREFIXES
+            # external links to special domain(s)
+            union {
+                ?directive a :ExternalLink ;
+                    :hrefLinked ?directive_link .
+
+                filter(strStarts(str(?directive_link), ?directive_link_prefix))
+
+                values ?directive_link_prefix {
+                    #@inject $DIRECTIVE_LINK_HREF_PREFIXES
+                }
+            }
+        #@fi
+    # }
+
+    #@inject $SOURCE_PAGE
+
+    #@inject $SPACES
+}

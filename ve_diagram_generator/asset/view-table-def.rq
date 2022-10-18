@@ -1,0 +1,41 @@
+
+select * from <$SPACE_GRAPH> {
+    <$SOURCE_PAGE> a :Document ;
+        :pageId ?source_page_d ;
+        :content/rdf:rest*/rdf:first ?definition_table .
+
+    ?definition_table a :Table ;
+        :rows/rdf:rest*/rdf:first/:cells (
+            [
+                a :HeaderCell ;
+                :body ([
+                    a :Container ;
+                    :body ([
+                        a :Macro ;
+                        ac:name "span" ;
+                        :parameter [
+                            a :Parameter ;
+                            ac:name "id" ;
+                            :value ?param_key ;
+                        ] ;
+                    ]) ;
+                ]) ;
+            ]
+            ?data_cell
+        ) .
+
+    ?data_cell a :DataCell .
+
+    {
+        ?data_cell :text ?param_value .
+    } union {
+        ?data_cell :body ([
+            :text ?param_value ;
+        ]) .
+    } union {
+        ?data_cell :body ([
+            :items/rdf:rest*/rdf:first/:text ?param_value ;
+        ]) .
+        bind(true as ?param_value_is_array)
+    }
+}
